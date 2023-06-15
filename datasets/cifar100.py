@@ -2,8 +2,7 @@ from torchvision.datasets import CIFAR100
 import torchvision.transforms as transforms
 
 from backbone.ResNet import resnet50
-from backbone.ResNetMoon import resnet50_moon
-from backbone.resnet_fedalign import resnet56_fedalign, resnet50_fedalign
+from backbone.resnet_fedalign import resnet50_fedalign
 from utils.conf import data_path
 from PIL import Image
 from datasets.utils.federated_dataset import FederatedDataset, partition_label_skew_loaders
@@ -27,7 +26,6 @@ class MyCifar100(CIFAR100):
             target = self.target_transform(target)
         return img, target
 
-
 class FedLeaCIFAR100(FederatedDataset):
     NAME = 'fl_cifar100'
     SETTING = 'label_skew'
@@ -37,25 +35,10 @@ class FedLeaCIFAR100(FederatedDataset):
         [transforms.RandomCrop(32, padding=4),
          transforms.RandomHorizontalFlip(),
          transforms.ToTensor(),
-         transforms.Normalize((0.4914, 0.4822, 0.4465),
-                              (0.2470, 0.2435, 0.2615))])
+         transforms.Normalize((0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
+                              (0.2673342858792401, 0.2564384629170883, 0.27615047132568404))])
 
-    # def get_data_loaders(self):
-    #     nor_transform = self.Nor_TRANSFORM
-    #     # if self.args.lt_ratio == -1.0:
-    #     #     train_dataset = MyCIFAR10(root=data_path(), train=True,
-    #     #                           download=False, transform=nor_transform)
-    #     # else:
-    #         # phase, imbalance_ratio, root = '/gruntdata5/kaihua/datasets', imb_type='exp'):
-    #     train_dataset = IMBALANCECIFAR100(transform=nor_transform,train=True,root=data_path(),imbalance_ratio=self.args.lt_ratio)
-    #     test_transform = transforms.Compose(
-    #         [transforms.ToTensor(), self.get_normalization_transform()])
-    #     test_dataset = CIFAR100(data_path(), train=False,
-    #                            download=False, transform=test_transform)
-    #
-    #     traindls, testdl = partition_label_skew_loaders(train_dataset, test_dataset, self)
-    #     return traindls, testdl
-    # 返回普通的cifarloader
+
     def get_data_loaders(self, train_transform=None):
         if not train_transform:
             train_transform = self.Nor_TRANSFORM
@@ -82,7 +65,7 @@ class FedLeaCIFAR100(FederatedDataset):
         nets_list = []
         if model_name == 'moon':
             for j in range(parti_num):
-                nets_list.append(resnet50_moon(num_classes=FedLeaCIFAR100.N_CLASS, name='resnet50'))
+                nets_list.append(resnet50(num_classes=FedLeaCIFAR100.N_CLASS, name='resnet50'))
         elif model_name == 'fedalign':
             for j in range(parti_num):
                 nets_list.append(resnet50_fedalign(class_num=FedLeaCIFAR100.N_CLASS, name='resnet50'))
@@ -93,12 +76,12 @@ class FedLeaCIFAR100(FederatedDataset):
 
     @staticmethod
     def get_normalization_transform():
-        transform = transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                         (0.2470, 0.2435, 0.2615))
+        transform = transforms.Normalize((0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
+                              (0.2673342858792401, 0.2564384629170883, 0.27615047132568404))
         return transform
 
     @staticmethod
     def get_denormalization_transform():
-        transform = DeNormalize((0.4914, 0.4822, 0.4465),
-                                (0.2470, 0.2435, 0.2615))
+        transform = DeNormalize((0.5070751592371323, 0.48654887331495095, 0.4409178433670343),
+                              (0.2673342858792401, 0.2564384629170883, 0.27615047132568404))
         return transform

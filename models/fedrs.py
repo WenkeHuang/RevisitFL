@@ -43,12 +43,12 @@ class FedRs(FederatedModel):
     def _train_net(self, index, net, train_loader):
         net = net.to(self.device)
         net.train()
-        if self.args.optimizer == 'adam':
-            optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
-        elif self.args.optimizer == 'sgd':
-            optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
-                                  weight_decay=self.args.reg)
-        # optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9, weight_decay=1e-5)
+        # if self.args.optimizer == 'adam':
+        #     optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
+        # elif self.args.optimizer == 'sgd':
+        #     optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
+        #                           weight_decay=self.args.reg)
+        optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9, weight_decay=1e-5)
 
         cls_count_dict = self.net_cls_counts[index]
 

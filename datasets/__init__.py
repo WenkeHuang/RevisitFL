@@ -1,13 +1,8 @@
-# Copyright 2022-present, Lorenzo Bonicelli, Pietro Buzzega, Matteo Boschini, Angelo Porrello, Simone Calderara.
-# All rights reserved.
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 
 import os
 import inspect
 import importlib
 from datasets.utils.federated_dataset import FederatedDataset
-from datasets.utils.public_dataset import PublicDataset
 from argparse import Namespace
 
 def get_all_models():
@@ -36,7 +31,3 @@ def get_prive_dataset(args: Namespace) -> FederatedDataset:
     assert args.dataset in Priv_NAMES.keys()
     return Priv_NAMES[args.dataset](args)
 
-def get_public_dataset(args: Namespace) -> PublicDataset:
-
-    assert args.public_dataset in Pub_NAMES.keys()
-    return Pub_NAMES[args.public_dataset](args)

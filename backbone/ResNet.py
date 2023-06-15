@@ -234,10 +234,8 @@ def resnet20(**kwargs):
 
 
 def resnet34(**kwargs):
-
     return ResNetCifar(BasicBlock, [3, 4, 6, 3], **kwargs)
 
 
 def resnet50(**kwargs):
-
     return ResNetCifar(Bottleneck, [3, 4, 6, 3], **kwargs)

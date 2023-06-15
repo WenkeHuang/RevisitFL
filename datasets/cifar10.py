@@ -100,18 +100,11 @@ class FedLeaCIFAR10(FederatedDataset):
 
         if model_name == 'fedalign':
             for j in range(parti_num):
-                # nets_list.append(resnet56_fedalign(class_num=FedLeaCIFAR10.N_CLASS, name='resnet56'))
                 nets_list.append(SimpleCNNAilgn(FedLeaCIFAR10.N_CLASS))
         else:
             for j in range(parti_num):
                 nets_list.append(SimpleCNN(FedLeaCIFAR10.N_CLASS))
 
-        # if names_list == None:
-        #     for j in range(parti_num):
-        #         nets_list.append(SimpleCNN(FedLeaCIFAR10.N_CLASS))
-        # else:
-        #     for j in range(parti_num):
-        #         nets_list.append(SimpleCNN(FedLeaCIFAR10.N_CLASS))
         return nets_list
 
     @staticmethod

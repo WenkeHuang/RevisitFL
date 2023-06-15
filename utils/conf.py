@@ -7,8 +7,8 @@ def get_device(device_id) -> torch.device:
 
 
 def data_path() -> str:
-    # return '/data0/data_wk/'
-    return '/data/FL_data/'
+    return '/data0/data_wk/' # 156,140
+    # return '/data/FL_data/' # 129
 
 
 

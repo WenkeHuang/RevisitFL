@@ -7,17 +7,18 @@ from models.utils.federated_model import FederatedModel
 import torch
 import numpy as np
 
+
 def get_parser() -> ArgumentParser:
     parser = ArgumentParser(description='Federated learning via FedProc.')
     add_management_args(parser)
     add_experiment_args(parser)
     return parser
 
+
 def agg_func(protos):
     """
     Returns the average of the weights.
     """
-
     for [label, proto_list] in protos.items():
         if len(proto_list) > 1:
             proto = 0 * proto_list[0].data
@@ -26,9 +27,7 @@ def agg_func(protos):
             protos[label] = proto / len(proto_list)
         else:
             protos[label] = proto_list[0]
-
     return protos
-
 
 
 class FedProc(FederatedModel):
@@ -46,7 +45,7 @@ class FedProc(FederatedModel):
         for _, net in enumerate(self.nets_list):
             net.load_state_dict(global_w)
 
-    def proto_aggregation(self,local_protos_list):
+    def proto_aggregation(self, local_protos_list):
         agg_protos_label = dict()
         for idx in self.online_clients:
             local_protos = local_protos_list[idx]
@@ -67,7 +66,6 @@ class FedProc(FederatedModel):
 
         return agg_protos_label
 
-
     def loc_update(self, priloader_list):
         total_clients = list(range(self.args.parti_num))
         online_clients = self.random_state.choice(total_clients, self.online_num, replace=False).tolist()
@@ -75,15 +73,16 @@ class FedProc(FederatedModel):
 
         for i in online_clients:
             self._train_net(i, self.nets_list[i], priloader_list[i])
-        self.global_protos=self.proto_aggregation(self.local_protos)
+        self.global_protos = self.proto_aggregation(self.local_protos)
         self.aggregate_nets(None)
         return None
 
     def _train_net(self, index, net, train_loader):
-        Epoch = self.args.communication_epoch-1
-        alpha = 1 - self.epoch_index/Epoch
+        Epoch = self.args.communication_epoch - 1
+        alpha = 1 - self.epoch_index / Epoch
 
         net = net.to(self.device)
+        net.train()
         optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9, weight_decay=1e-5)
         criterion = nn.CrossEntropyLoss()
         criterion.to(self.device)
@@ -115,7 +114,7 @@ class FedProc(FederatedModel):
                     loss_InfoNCE = None
                     for label in labels:
                         if label.item() in self.global_protos.keys():
-                            f_pos = np.array(all_f)[all_global_protos_keys==label.item()][0].to(self.device)
+                            f_pos = np.array(all_f)[all_global_protos_keys == label.item()][0].to(self.device)
                             f_neg = torch.cat(list(np.array(all_f)[all_global_protos_keys != label.item()])).to(
                                 self.device)
                             f_now = f[i].unsqueeze(0)
@@ -138,26 +137,27 @@ class FedProc(FederatedModel):
                             if loss_InfoNCE is None:
                                 loss_InfoNCE = loss_instance
                             else:
-                                loss_InfoNCE +=loss_instance
+                                loss_InfoNCE += loss_instance
                         i += 1
                     loss_InfoNCE = loss_InfoNCE / i
                 loss_InfoNCE = loss_InfoNCE
 
-                loss = alpha * loss_InfoNCE + (1-alpha) * lossCE
+                loss = alpha * loss_InfoNCE + (1 - alpha) * lossCE
                 loss.backward()
                 iterator.desc = "Local Pariticipant %d CE = %0.3f,InfoNCE = %0.3f" % (index, lossCE, loss_InfoNCE)
                 optimizer.step()
 
-        for batch_idx, (images, labels) in enumerate(train_loader):
-            optimizer.zero_grad()
-            images = images.to(self.device)
-            labels = labels.to(self.device)
-            f = net.features(images)
-            for i in range(len(labels)):
-                if labels[i].item() in agg_protos_label:
-                    agg_protos_label[labels[i].item()].append(f[i,:])
-                else:
-                    agg_protos_label[labels[i].item()] = [f[i,:]]
+        with torch.no_grad():
+            for batch_idx, (images, labels) in enumerate(train_loader):
+                optimizer.zero_grad()
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+                f = net.features(images)
+                for i in range(len(labels)):
+                    if labels[i].item() in agg_protos_label:
+                        agg_protos_label[labels[i].item()].append(f[i, :])
+                    else:
+                        agg_protos_label[labels[i].item()] = [f[i, :]]
 
         agg_protos = agg_func(agg_protos_label)
         self.local_protos[index] = agg_protos

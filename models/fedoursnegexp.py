@@ -20,18 +20,18 @@ class LogitNormLoss(nn.Module):
         return F.cross_entropy(logit_norm, target)
 
 def get_parser() -> ArgumentParser:
-    parser = ArgumentParser(description='Federated learning via FedOursNormLogExp.')
+    parser = ArgumentParser(description='Federated learning via FedOursNegExp.')
     add_management_args(parser)
     add_experiment_args(parser)
     return parser
 
 
-class FedOurNormLogExp(FederatedModel):
-    NAME = 'fedournormlogexp'
+class FedOursNegExp(FederatedModel):
+    NAME = 'fedoursnoexp'
     COMPATIBILITY = ['homogeneity']
 
     def __init__(self, nets_list,args, transform):
-        super(FedOurNormLogExp, self).__init__(nets_list, args, transform)
+        super(FedOursNegExp, self).__init__(nets_list, args, transform)
         self.t = args.t
         self.w = args.w
         self.norm_dict = {}
@@ -66,19 +66,11 @@ class FedOurNormLogExp(FederatedModel):
         online_clients_all = np.sum(online_clients_len)
         data_freq_weight = online_clients_len / online_clients_all
 
+
         online_clients_norm = [self.norm_dict[online_clients_index] for online_clients_index in online_clients]
-        # online_clients_norm = [torch.log(self.norm_dict[online_clients_index] for online_clients_index in online_clients)]
-        online_clients_mean_norm = np.mean(online_clients_norm)
-
-        # online_clients_norm_weight = [np.log(online_clients_mean_norm /(item * self.w)) for item in online_clients_norm]
-
-        # online_clients_norm_weight = [online_clients_mean_norm / np.log((item * self.w)) for item in online_clients_norm]
-        online_clients_norm_weight = np.array([online_clients_mean_norm / (item * self.w) for item in online_clients_norm])
-
-        # online_clients_norm_weight = np.exp(online_clients_norm_weight) / np.sum(np.exp(online_clients_norm_weight),axis=0)
-
-        online_clients_norm_weight = np.log(online_clients_norm_weight+1) / np.sum(np.log(online_clients_norm_weight+1),axis=0)
-
+        online_clients_norm_weight = [-item/(self.w) for item in online_clients_norm]
+        # e_x = np.exp(online_clients_norm_weight - np.max(online_clients_norm_weight))
+        online_clients_norm_weight = (online_clients_norm_weight) / np.sum(online_clients_norm_weight,axis=0)
         online_client_weight = np.multiply(data_freq_weight, online_clients_norm_weight)
 
         online_client_weight = online_client_weight / np.sum(online_client_weight)
@@ -87,6 +79,7 @@ class FedOurNormLogExp(FederatedModel):
         for index,net_id in enumerate(online_clients):
             net = nets_list[net_id]
             net_para = net.state_dict()
+            # if net_id == 0:
             if first:
                 first = False
                 for key in net_para:
@@ -103,11 +96,14 @@ class FedOurNormLogExp(FederatedModel):
 
     def _train_net(self,index,net,train_loader):
         net = net.to(self.device)
+
+        if self.args.optimizer == 'adam':
+            optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
+        elif self.args.optimizer == 'sgd':
+            optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
+                                  weight_decay=self.args.reg)
+
         net.train()
-        # if self.args.optimizer == 'adam':
-        #     optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
-        # elif self.args.optimizer == 'sgd':
-        optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9,weight_decay=self.args.reg)
         criterion = LogitNormLoss(t=self.t)
         criterion.to(self.device)
         iterator = tqdm(range(self.local_epoch))
@@ -124,6 +120,7 @@ class FedOurNormLogExp(FederatedModel):
 
         net.eval()
         g_norm = 0
+        # g_t = 0
         private_len = len(train_loader.sampler.indices)
         for batch_idx, (images, labels) in enumerate(train_loader):
             images = images.to(self.device)

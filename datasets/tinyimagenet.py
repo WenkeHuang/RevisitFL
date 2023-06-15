@@ -5,6 +5,7 @@ from PIL import Image
 from datasets.utils.federated_dataset import FederatedDataset,partition_label_skew_loaders
 from datasets.utils.public_dataset import PublicDataset,random_loaders
 from typing import Tuple
+from backbone.ResNet import resnet50
 from datasets.transforms.denormalization import DeNormalize
 from backbone.ResNet import resnet10,resnet12,resnet18
 from torch.utils.data import Dataset
@@ -75,52 +76,55 @@ class MyTinyImagenet(TinyImagenet):
 
         return img, target
 
-
-class PublicTinyImagenet(PublicDataset):
-    NAME = 'pub_tyimagenet'
-
-    CON_TRANSFORM = transforms.Compose(
-        [transforms.RandomCrop(32, padding=4),
-         transforms.RandomHorizontalFlip(),
-         transforms.RandomApply([
-             transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
-         ], p=0.8),
-         transforms.RandomGrayscale(p=0.2),
-         transforms.ToTensor(),
-         transforms.Normalize((0.5071, 0.4865, 0.4409),
-                              (0.2673, 0.2564, 0.2762))])
-
-
+class FedLeaTinyImagenet(FederatedDataset):
+    NAME = 'fl_tiny_imagenet'
+    SETTING = 'label_skew'
+    N_SAMPLES_PER_Class = None
+    N_CLASS = 200
     Nor_TRANSFORM = transforms.Compose(
         [transforms.RandomCrop(32, padding=4),
          transforms.RandomHorizontalFlip(),
          transforms.ToTensor(),
-         transforms.Normalize((0.5071, 0.4865, 0.4409),
-                              (0.2673, 0.2564, 0.2762))])
+         transforms.Normalize((0.5, 0.5, 0.5),
+                              (0.5, 0.5, 0.5))])
 
-    def get_data_loaders(self):
-        pub_aug = self.args.pub_aug
-        if pub_aug =='weak':
-            selected_transform = self.Nor_TRANSFORM
-        elif pub_aug =='strong':
-            selected_transform = self.CON_TRANSFORM
+    def get_data_loaders(self, train_transform=None):
+        if not train_transform:
+            train_transform = self.Nor_TRANSFORM
 
         train_dataset = MyTinyImagenet(data_path()+'TINYIMG', train=True,
-                                  download=False, transform=selected_transform)
+                                  download=False, transform=train_transform)
 
-        traindl = random_loaders(train_dataset,self)
+        test_transform = transforms.Compose(
+            [transforms.ToTensor(), self.get_normalization_transform()])
 
-        return traindl
+        test_dataset = MyTinyImagenet(data_path()+'TINYIMG', train=False,
+                                  download=False, transform=test_transform)
+
+        traindls, testdl, net_cls_counts = partition_label_skew_loaders(train_dataset, test_dataset, self)
+
+        return traindls, testdl, net_cls_counts
 
 
     @staticmethod
+    def get_transform():
+        transform = transforms.Compose(
+            [transforms.ToPILImage(), FedLeaTinyImagenet.Nor_TRANSFORM])
+        return transform
+
+    @staticmethod
+    def get_backbone(parti_num, names_list, model_name=''):
+        nets_list = []
+        for j in range(parti_num):
+            nets_list.append(resnet50(num_classes=FedLeaTinyImagenet.N_CLASS, name='resnet50'))
+        return nets_list
+
+    @staticmethod
     def get_normalization_transform():
-        transform = transforms.Normalize((0.5071, 0.4865, 0.4409),
-                              (0.2673, 0.2564, 0.2762))
+        transform = transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         return transform
 
     @staticmethod
     def get_denormalization_transform():
-        transform = DeNormalize((0.5071, 0.4865, 0.4409),
-                              (0.2673, 0.2564, 0.2762))
+        transform = DeNormalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         return transform

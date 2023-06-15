@@ -13,6 +13,7 @@ def get_parser() -> ArgumentParser:
     add_experiment_args(parser)
     return parser
 
+
 class ScaffoldOptimizer(torch.optim.Optimizer):
     def __init__(self, params, lr, weight_decay):
         defaults = dict(
@@ -60,8 +61,7 @@ class Scaffold(FederatedModel):
         self.delta_models = {}
         self.delta_controls = {}
         self.max_grad_norm = 100
-        self.global_lr=args.global_lr# 0.5 0.25 0.1
-
+        self.global_lr = args.global_lr  # 0.5 0.25 0.1
 
     def init_control(self, model):
         """ a dict type: {name: params}
@@ -104,12 +104,12 @@ class Scaffold(FederatedModel):
             self._train_net(i, self.nets_list[i], priloader_list[i])
             self.update_local_control(i)
 
-        self.update_global()
+        # self.update_global()
 
         new_control = self.update_global_control()
 
         self.global_control = copy.deepcopy(new_control)
-
+        self.aggregate_nets(None)
         return None
 
     def update_local_control(self, index):
@@ -120,11 +120,12 @@ class Scaffold(FederatedModel):
         delta_control = copy.deepcopy(client_control)
 
         for name in self.delta_models[index].keys():
-            c = client_control[name]
+            # c = client_control[name]
+            c = self.global_control[name]
             ci = client_control[name]
             delta = delta_model[name]
 
-            new_ci = ci.data - c.data + delta.data / (self.local_epoch*self.local_lr)
+            new_ci = ci.data - c.data + delta.data / (self.cnt * self.local_lr)
             new_control[name].data = new_ci
             delta_control[name].data = ci.data - new_ci
 
@@ -146,8 +147,8 @@ class Scaffold(FederatedModel):
 
         for name, param in self.global_net.state_dict().items():
             vs = []
-            for client in  self.delta_models.keys():
-                vs.append( self.delta_models[client][name])
+            for client in self.delta_models.keys():
+                vs.append(self.delta_models[client][name])
             vs = torch.stack(vs, dim=0)
 
             try:
@@ -177,6 +178,7 @@ class Scaffold(FederatedModel):
         criterion = nn.CrossEntropyLoss()
         criterion.to(self.device)
         iterator = tqdm(range(self.local_epoch))
+        self.cnt=0
         for _ in iterator:
             for batch_idx, (images, labels) in enumerate(train_loader):
                 images = images.to(self.device)
@@ -192,6 +194,7 @@ class Scaffold(FederatedModel):
 
                 iterator.desc = "Local Pariticipant %d loss = %0.3f" % (index, loss)
                 optimizer.step(server_control=self.global_control, client_control=self.local_controls[index])
+                self.cnt+=1
 
         delta_model = self.get_delta_model(self.global_net, net)
         self.delta_models[index] = copy.deepcopy(delta_model)

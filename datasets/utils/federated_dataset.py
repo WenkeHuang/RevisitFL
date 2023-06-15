@@ -11,7 +11,7 @@ import torch.optim
 
 class FederatedDataset:
     """
-    Continual learning evaluation setting.
+    Federated learning evaluation setting.
     """
     NAME = None
     SETTING = None
@@ -93,7 +93,10 @@ def partition_label_skew_loaders(train_dataset: datasets, test_dataset: datasets
     n_class_sample = setting.N_SAMPLES_PER_Class
     min_size = 0
     min_require_size = 10
-    y_train = train_dataset.targets
+    if hasattr(train_dataset, 'targets'):
+        y_train = train_dataset.targets
+    else:
+        y_train = train_dataset.dataset.targets
     N = len(y_train)
     net_dataidx_map = {}
 
@@ -105,7 +108,7 @@ def partition_label_skew_loaders(train_dataset: datasets, test_dataset: datasets
             if n_class_sample != None:
                 idx_k = idx_k[0:n_class_sample * n_participants]
             beta = setting.args.beta
-            if beta == 0:  # beta为0，不能用狄利克雷，均分？
+            if beta == 0:
                 idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.array_split(idx_k, n_participants))]
             else:
                 proportions = np.random.dirichlet(np.repeat(a=beta, repeats=n_participants))
@@ -126,103 +129,14 @@ def partition_label_skew_loaders(train_dataset: datasets, test_dataset: datasets
     for j in range(n_participants):
         train_sampler = SubsetRandomSampler(net_dataidx_map[j])
         train_loader = DataLoader(train_dataset,
-                                  batch_size=setting.args.local_batch_size, sampler=train_sampler, num_workers=4, drop_last=False)
+                                  batch_size=setting.args.local_batch_size, sampler=train_sampler, num_workers=1, drop_last=False)
         setting.train_loaders.append(train_loader)
 
     test_loader = DataLoader(test_dataset,
-                             batch_size=setting.args.local_batch_size, shuffle=False, num_workers=4)
+                             batch_size=setting.args.local_batch_size, shuffle=False, num_workers=1)
     setting.test_loader = test_loader
 
     return setting.train_loaders, setting.test_loader, net_cls_counts
-
-
-def partition_digits_domain_skew_loaders(train_datasets: list, test_datasets: list,
-                                         setting: FederatedDataset) -> Tuple[list, list]:
-    ini_len_dict = {}
-    not_used_index_dict = {}
-    for i in range(len(train_datasets)):
-        name = train_datasets[i].data_name
-        if name not in not_used_index_dict:
-            if name == 'svhn':
-                train_dataset = train_datasets[i].dataset
-                y_train = train_dataset.labels
-            elif name == 'syn':
-                train_dataset = train_datasets[i].imagefolder_obj
-                y_train = train_dataset.targets
-            else:
-                train_dataset = train_datasets[i].dataset
-                y_train = train_dataset.targets
-
-            not_used_index_dict[name] = np.arange(len(y_train))
-            ini_len_dict[name] = len(y_train)
-
-    for index in range(len(train_datasets)):
-        name = train_datasets[index].data_name
-
-        if name == 'syn':
-            train_dataset = train_datasets[index].imagefolder_obj
-        else:
-            train_dataset = train_datasets[index].dataset
-
-        idxs = np.random.permutation(not_used_index_dict[name])
-
-        percent = setting.percent_dict[name]
-        selected_idx = idxs[0:int(percent * ini_len_dict[name])]
-        not_used_index_dict[name] = idxs[int(percent * ini_len_dict[name]):]
-
-        train_sampler = SubsetRandomSampler(selected_idx)
-        train_loader = DataLoader(train_dataset,
-                                  batch_size=setting.args.local_batch_size, sampler=train_sampler)
-        setting.train_loaders.append(train_loader)
-
-    for index in range(len(test_datasets)):
-        name = test_datasets[index].data_name
-        if name == 'syn':
-            test_dataset = test_datasets[index].imagefolder_obj
-        else:
-            test_dataset = test_datasets[index].dataset
-
-        test_loader = DataLoader(test_dataset,
-                                 batch_size=setting.args.local_batch_size, shuffle=False)
-        setting.test_loader.append(test_loader)
-
-    return setting.train_loaders, setting.test_loader
-
-
-def partition_office_domain_skew_loaders(train_datasets: list, test_datasets: list,
-                                         setting: FederatedDataset) -> Tuple[list, list]:
-    ini_len_dict = {}
-    not_used_index_dict = {}
-    for i in range(len(train_datasets)):
-        name = train_datasets[i].data_name
-        if name not in not_used_index_dict:
-            all_train_index = train_datasets[i].train_index_list
-
-            not_used_index_dict[name] = np.arange(len(all_train_index))
-            ini_len_dict[name] = len(all_train_index)
-
-    for index in range(len(test_datasets)):
-        test_dataset = test_datasets[index].imagefolder_obj
-        test_loader = DataLoader(test_dataset, batch_size=setting.args.local_batch_size)
-        setting.test_loader.append(test_loader)
-
-    for index in range(len(train_datasets)):
-        name = train_datasets[index].data_name
-        train_dataset = train_datasets[index].imagefolder_obj
-
-        idxs = np.random.permutation(not_used_index_dict[name])
-
-        percent = setting.percent_dict[name]
-        selected_idx = idxs[0:int(percent * ini_len_dict[name])]
-        not_used_index_dict[name] = idxs[int(percent * ini_len_dict[name]):]
-
-        train_sampler = SubsetRandomSampler(selected_idx)
-
-        train_loader = DataLoader(train_dataset,
-                                  batch_size=setting.args.local_batch_size, sampler=train_sampler)
-        setting.train_loaders.append(train_loader)
-
-    return setting.train_loaders, setting.test_loader
 
 
 def record_net_data_stats(y_train, net_dataidx_map, n_class):
@@ -247,4 +161,17 @@ def record_net_data_stats(y_train, net_dataidx_map, n_class):
     print('mean:', np.mean(data_list))
     print('std:', np.std(data_list))
     print('Data statistics: %s' % str(net_cls_counts))
+    # save_data_stat(net_cls_counts)
     return net_cls_counts
+
+
+def save_data_stat(net_cls_counts):
+    path = 'datastat.csv'
+    with open(path, 'w') as f:
+        for k1 in net_cls_counts:
+            data = net_cls_counts[k1]
+            out_str = ''
+            for k2 in data:
+                out_str += str(data[k2]) + ','
+            out_str += '\n'
+            f.write(out_str)

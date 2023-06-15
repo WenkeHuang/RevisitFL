@@ -4,18 +4,17 @@ import torch.nn.functional as F
 import math
 
 
-
 class MLP_header(nn.Module):
-    def __init__(self,):
+    def __init__(self, ):
         super(MLP_header, self).__init__()
-        self.fc1 = nn.Linear(28*28, 512)
+        self.fc1 = nn.Linear(28 * 28, 512)
         self.fc2 = nn.Linear(512, 512)
         self.relu = nn.ReLU()
-        #projection
+        # projection
         # self.fc3 = nn.Linear(512, 10)
 
     def forward(self, x):
-        x = x.view(-1, 28*28)
+        x = x.view(-1, 28 * 28)
         x = self.fc1(x)
         x = self.relu(x)
         x = self.fc2(x)
@@ -132,12 +131,10 @@ class SimpleCNN_header(nn.Module):
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
 
-
         self.fc1 = nn.Linear(input_dim, hidden_dims[0])
         self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
 
     def forward(self, x):
-
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
         x = x.view(-1, 16 * 5 * 5)
@@ -179,7 +176,6 @@ class PerceptronModel(nn.Module):
         self.fc1 = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
-
         x = self.fc1(x)
         return x
 
@@ -196,10 +192,9 @@ class SimpleCNNMNIST_header(nn.Module):
         # i.e. we fix the number of hidden layers i.e. 2 layers
         self.fc1 = nn.Linear(input_dim, hidden_dims[0])
         self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
-        #self.fc3 = nn.Linear(hidden_dims[1], output_dim)
+        # self.fc3 = nn.Linear(hidden_dims[1], output_dim)
 
     def forward(self, x):
-
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
         x = x.view(-1, 16 * 4 * 4)
@@ -208,6 +203,7 @@ class SimpleCNNMNIST_header(nn.Module):
         x = self.relu(self.fc2(x))
         # x = self.fc3(x)
         return x
+
 
 class SimpleCNNMNIST(nn.Module):
     def __init__(self, input_dim, hidden_dims, output_dim=10):
@@ -231,6 +227,7 @@ class SimpleCNNMNIST(nn.Module):
         x = F.relu(self.fc2(x))
         y = self.fc3(x)
         return x, 0, y
+
 
 class SimpleCNNContainer(nn.Module):
     def __init__(self, input_channel, num_filters, kernel_size, input_dim, hidden_dims, output_dim=10):
@@ -262,6 +259,7 @@ class SimpleCNNContainer(nn.Module):
         x = self.fc3(x)
         return x
 
+
 class SimpleCNN(nn.Module):
 
     def __init__(self, n_classes):
@@ -285,25 +283,26 @@ class SimpleCNN(nn.Module):
 
     def features(self, x: torch.Tensor) -> torch.Tensor:
         h = self.feats(x)
-        h = h.squeeze()
+        # h = h.squeeze()
         h = self.l1(h)
         h = F.relu(h)
         h = self.l2(h)
-        return  h
+        return h
 
-    def classifier(self,h:torch.Tensor)->torch.Tensor:
+    def classifier(self, h: torch.Tensor) -> torch.Tensor:
         y = self.fc(h)
         return y
 
     def forward(self, x):
         h = self.feats(x)
-        h = h.squeeze()
+        # h = h.squeeze()
         x = self.l1(h)
         x = F.relu(x)
         x = self.l2(x)
 
         y = self.fc(x)
         return y
+
 
 class ModelFedCon_noheader(nn.Module):
 
@@ -318,7 +317,7 @@ class ModelFedCon_noheader(nn.Module):
     def _get_basemodel(self, model_name):
         try:
             model = self.model_dict[model_name]
-            #print("Feature extractor:", model_name)
+            # print("Feature extractor:", model_name)
             return model
         except:
             raise ("Invalid model name. Check the config file and pass one of: resnet18 or resnet50")
@@ -326,7 +325,7 @@ class ModelFedCon_noheader(nn.Module):
     def features(self, x: torch.Tensor) -> torch.Tensor:
         h = self.features(x)
         h = h.squeeze()
-        return  h
+        return h
 
     def forward(self, x):
         h = self.features(x)

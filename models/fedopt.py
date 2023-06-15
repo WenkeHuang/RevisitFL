@@ -105,7 +105,7 @@ class FedOpt(FederatedModel):
     def _train_net(self, index, net, train_loader):
         net = net.to(self.device)
         net.train()
-        optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9, weight_decay=1e-5)
+        optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9,weight_decay=self.args.reg)
         criterion = nn.CrossEntropyLoss()
         criterion.to(self.device)
         iterator = tqdm(range(self.local_epoch))

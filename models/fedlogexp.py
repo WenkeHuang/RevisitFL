@@ -8,31 +8,19 @@ from utils.args import *
 from models.utils.federated_model import FederatedModel
 import numpy as np
 
-class LogitNormLoss(nn.Module):
-
-    def __init__(self, t=1.0):
-        super(LogitNormLoss, self).__init__()
-        self.t = t
-
-    def forward(self, x, target):
-        norms = torch.norm(x, p=2, dim=-1, keepdim=True) + 1e-7
-        logit_norm = torch.div(x, norms) / self.t
-        return F.cross_entropy(logit_norm, target)
-
 def get_parser() -> ArgumentParser:
-    parser = ArgumentParser(description='Federated learning via FedOursNormLogExp.')
+    parser = ArgumentParser(description='Federated learning via FedLogExp.')
     add_management_args(parser)
     add_experiment_args(parser)
     return parser
 
 
-class FedOurNormLogExp(FederatedModel):
-    NAME = 'fedournormlogexp'
+class FedLogExp(FederatedModel):
+    NAME = 'fedlogexp'
     COMPATIBILITY = ['homogeneity']
 
     def __init__(self, nets_list,args, transform):
-        super(FedOurNormLogExp, self).__init__(nets_list, args, transform)
-        self.t = args.t
+        super(FedLogExp, self).__init__(nets_list, args, transform)
         self.w = args.w
         self.norm_dict = {}
 
@@ -79,6 +67,8 @@ class FedOurNormLogExp(FederatedModel):
 
         online_clients_norm_weight = np.log(online_clients_norm_weight+1) / np.sum(np.log(online_clients_norm_weight+1),axis=0)
 
+
+        # online_clients_norm_weight = (online_clients_norm_weight) / np.sum(online_clients_norm_weight,axis=0)
         online_client_weight = np.multiply(data_freq_weight, online_clients_norm_weight)
 
         online_client_weight = online_client_weight / np.sum(online_client_weight)
@@ -107,8 +97,10 @@ class FedOurNormLogExp(FederatedModel):
         # if self.args.optimizer == 'adam':
         #     optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
         # elif self.args.optimizer == 'sgd':
+        #     optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
+        #                           weight_decay=self.args.reg)
         optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9,weight_decay=self.args.reg)
-        criterion = LogitNormLoss(t=self.t)
+        criterion = nn.CrossEntropyLoss()
         criterion.to(self.device)
         iterator = tqdm(range(self.local_epoch))
         for _ in iterator:

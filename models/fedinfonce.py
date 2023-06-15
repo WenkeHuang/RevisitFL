@@ -5,38 +5,38 @@ import copy
 from utils.args import *
 from models.utils.federated_model import FederatedModel
 import torch
-
-# https://github.com/yuetan031/fedproto
+import numpy as np
 
 def get_parser() -> ArgumentParser:
-    parser = ArgumentParser(description='Federated learning via FedProto.')
+    parser = ArgumentParser(description='Federated learning via FedInfoNCE.')
     add_management_args(parser)
     add_experiment_args(parser)
     return parser
 
-def agg_func(protos,device):
+def agg_func(protos):
     """
     Returns the average of the weights.
     """
+
     for [label, proto_list] in protos.items():
         if len(proto_list) > 1:
             proto = 0 * proto_list[0].data
             for i in proto_list:
                 proto += i.data
-            protos[label] = proto.to(device) / len(proto_list)
+            protos[label] = proto / len(proto_list)
         else:
-            protos[label] = proto_list[0].to(device)
+            protos[label] = proto_list[0]
 
     return protos
 
 
-class FedProto(FederatedModel):
-    NAME = 'fedproto'
+class FedInfoNCE(FederatedModel):
+    NAME = 'fedinfonce'
     COMPATIBILITY = ['homogeneity']
 
     def __init__(self, nets_list, args, transform):
-        super(FedProto, self).__init__(nets_list, args, transform)
-        self.mu = args.mu
+        super(FedInfoNCE, self).__init__(nets_list, args, transform)
+        self.T = args.T
         self.global_protos = []
         self.local_protos = {}
 
@@ -55,7 +55,6 @@ class FedProto(FederatedModel):
                     agg_protos_label[label].append(local_protos[label])
                 else:
                     agg_protos_label[label] = [local_protos[label]]
-
         for [label, proto_list] in agg_protos_label.items():
             if len(proto_list) > 1:
                 proto = 0 * proto_list[0].data
@@ -101,33 +100,55 @@ class FedProto(FederatedModel):
                 lossCE = criterion(outputs, labels)
 
                 f = net.features(images)
-                loss_mse = nn.MSELoss()
                 if len(self.global_protos) == 0:
-                    lossProto = 0*lossCE
+                    loss_InfoNCE = 0 * lossCE
                 else:
-                    with torch.no_grad():
-                        f_new = copy.deepcopy(f.data)
-                        i = 0
-                        for label in labels:
-                            if label.item() in self.global_protos.keys():
-                                f_new[i, :] = self.global_protos[label.item()][0].data
-                            i += 1
-                    lossProto = loss_mse(f_new, f)
+                    i = 0
+                    l_outputs = None
+                    for label in labels:
+                        # 判断当前label 是否存在对应的global protos
+                        if label.item() in self.global_protos.keys():
+                            # 通过label 获得对应的prostive
+                            f_pos = self.global_protos[label.item()][0].data
+                            # 遍历获得对应的Negative
+                            f_neg = None
+                            for key, value in self.global_protos.items():
+                                if key != label.item():
+                                    fix_value = value[0].unsqueeze(0)
+                                    if f_neg == None:
+                                        f_neg = fix_value
+                                    else:
+                                        f_neg = torch.cat((f_neg, fix_value), 0)
+                            # 获得当前feature
+                            f_now = f[i].unsqueeze(0)
 
-                lossProto = lossProto * self.mu
+                            l_pos = torch.einsum('nc,nc->n', [f_now, f_pos.unsqueeze(0)]).unsqueeze(-1)
+                            l_neg = torch.einsum('nc,ck->nk', [f_now, f_neg.T])
+                            l_instance = torch.cat([l_pos, l_neg], dim=1)
+                            l_instance /= self.T
 
-                loss = lossCE + lossProto
+                            # 存储每个样本对应的l_instance
+                            if l_outputs ==None:
+                                l_outputs = l_instance
+                            else:
+                                l_outputs = torch.cat((l_outputs,l_instance),0)
+                        i += 1
+                    l_labels = torch.zeros(l_outputs.shape[0], dtype=torch.long).to(self.device)
+                    loss_InfoNCE = criterion(l_outputs, l_labels)
+
+                loss_InfoNCE = loss_InfoNCE
+
+                loss = lossCE + loss_InfoNCE
                 loss.backward()
-                iterator.desc = "Local Pariticipant %d CE = %0.3f,Proto = %0.3f" % (index, lossCE, lossProto)
+                iterator.desc = "Local Pariticipant %d CE = %0.3f,InfoNCE = %0.3f" % (index, lossCE, loss_InfoNCE)
                 optimizer.step()
 
                 if iter == self.local_epoch-1:
-                    with torch.no_grad():
-                        for i in range(len(labels)):
-                            if labels[i].item() in agg_protos_label:
-                                agg_protos_label[labels[i].item()].append(f[i,:].cpu())
-                            else:
-                                agg_protos_label[labels[i].item()] = [f[i,:].cpu()]
+                    for i in range(len(labels)):
+                        if labels[i].item() in agg_protos_label:
+                            agg_protos_label[labels[i].item()].append(f[i,:])
+                        else:
+                            agg_protos_label[labels[i].item()] = [f[i,:]]
 
-        agg_protos = agg_func(agg_protos_label,self.device)
+        agg_protos = agg_func(agg_protos_label)
         self.local_protos[index] = agg_protos

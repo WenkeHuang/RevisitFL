@@ -48,12 +48,13 @@ class MOON(FederatedModel):
     def _train_net(self, index, net, prev_net, train_loader):
         net = net.to(self.device)
         prev_net = prev_net.to(self.device)
-        if self.args.optimizer == 'adam':
-            optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
-        elif self.args.optimizer == 'sgd':
-            optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
-                                  weight_decay=self.args.reg)
-        # optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9, weight_decay=1e-5)
+        # if self.args.optimizer == 'adam':
+        #     optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, weight_decay=self.args.reg)
+        # elif self.args.optimizer == 'sgd':
+        #     optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=self.local_lr, momentum=0.9,
+        #                           weight_decay=self.args.reg)
+        optimizer = optim.SGD(net.parameters(), lr=self.local_lr, momentum=0.9,
+                              weight_decay=self.args.reg)
         criterion = nn.CrossEntropyLoss()
         criterion.to(self.device)
         iterator = tqdm(range(self.local_epoch))
@@ -76,7 +77,10 @@ class MOON(FederatedModel):
                 lossCON = self.mu * criterion(temp, targets)
                 outputs = net(images)
                 lossCE = criterion(outputs, labels)
-                loss = lossCE + lossCON
+                # if self.epoch_index==0:
+                #     loss = lossCE
+                # else:
+                loss = lossCE+ lossCON
                 optimizer.zero_grad()
                 loss.backward()
                 iterator.desc = "Local Pariticipant %d CE = %0.3f,CON = %0.3f" % (index, lossCE, lossCON)
