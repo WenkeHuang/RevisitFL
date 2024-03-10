@@ -5,7 +5,7 @@
 @article{AbrFun_SCIS2024,
     author    = {Mang, Ye and Huang, Wenke and  Shi, Zekun and Li, He and Bo, Du},
     title     = {Revisiting Federated Learning with Label Skew: An Over-Confidence Perspective},
-    booktitle = {SCIS},
+    journal = {SCIS},
     year      = {2023}
 }
 ```
